@@ -2,6 +2,7 @@ import json
 import numpy as np
 from glider_utils import *
 from netCDF4 import Dataset
+from bokeh.io import output_file, save
 import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -23,8 +24,9 @@ class Glider:
         self.variable_data_interest = dict()
         self.read_config()
         self.read_netcdf_file()
-        create_folder(self.config[self.general_section]['out_dir'] + self.config[self.general_section]['name'])
-        pass
+        self.out_dir = self.config[self.general_section]['out_dir'] + self.config[self.general_section]['name']
+        create_folder(self.out_dir)
+        self.create_temperature_salinity_diagram()
 
     def read_config(self):
         self.config[self.general_section] = {
@@ -52,3 +54,20 @@ class Glider:
         for cur_var in read_variables:
             self.variable_data_interest[cur_var] = get_data_array(self.root[cur_var])
 
+    def create_temperature_salinity_diagram(self):
+        logger.info('Creating TS diagram...')
+        try:
+            ts_variable = self.root[self.config[self.scientific_section]['t_s_range']]
+        except IndexError:
+            ts_variable = np.asarray([])
+        t_s_range = get_data_array_filled_with_nans(ts_variable)
+        temp = get_data_array_filled_with_nans(self.root['temperature'])
+        sal = get_data_array_filled_with_nans(self.root['salinity'])
+        p = plot_temperature_salinity_diagram(temp, sal)
+        logger.info('Saving TS diagram...')
+        output_file(self.out_dir + '/T_S_diagram.html')
+        save(p)
+        p = plot_temperature_salinity_diagram(temp, sal, z=t_s_range)
+        logger.info('Saving TS diagram...')
+        output_file(self.out_dir + '/T_S_diagram' + self.config[self.scientific_section]['t_s_range'] + '.html')
+        save(p)
