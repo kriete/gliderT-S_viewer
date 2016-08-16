@@ -25,10 +25,12 @@ class Glider:
         self.scientific_section = 'Scientifical'
         self.variable_data_interest = dict()
         self.read_config()
+        self.is_l2 = is_l2_processing_level(self.config[self.general_section]['link'])
         self.read_netcdf_file()
         self.out_dir = self.config[self.general_section]['out_dir'] + self.config[self.general_section]['name']
         create_folder(self.out_dir)
         self.create_temperature_salinity_diagram()
+
 
     def read_config(self):
         self.config[self.general_section] = {
@@ -58,18 +60,24 @@ class Glider:
             self.variable_data_interest[cur_var] = get_data_array(self.root[cur_var])
 
     def get_depth_levels(self, variable_data):
-        non_flatted_size = len(self.time)
-        variable_levels_size = len(self.depth)
-        depth_levels = np.zeros((non_flatted_size, variable_levels_size))
-        for i in range(0, variable_levels_size):
-            depth_levels[i, :] = variable_data
-        return depth_levels
+        if self.is_l2:
+            non_flatted_size = len(self.time)
+            variable_levels_size = len(self.depth)
+            depth_levels = np.zeros((non_flatted_size, variable_levels_size))
+            for i in range(0, variable_levels_size):
+                depth_levels[i, :] = variable_data
+            return depth_levels
+        else:
+            return variable_data
 
     def get_time_levels(self, variable_data):
-        time_levels = np.zeros((len(self.time), len(self.depth)))
-        for i in range(0, len(self.time)):
-            time_levels[i, :] = variable_data[i]
-        return time_levels
+        if self.is_l2:
+            time_levels = np.zeros((len(self.time), len(self.depth)))
+            for i in range(0, len(self.time)):
+                time_levels[i, :] = variable_data[i]
+            return time_levels
+        else:
+            return variable_data
 
     def create_temperature_salinity_diagram(self):
         logger.info('Creating TS diagram...')
@@ -110,3 +118,6 @@ class Glider:
             logger.info('Saving TS diagram with ranges {0}...'.format(cur_range_var_name))
             output_file(self.out_dir + '/T_S_diagram_' + cur_range_var_name + '.html')
             save(p)
+
+    def create_profile_viewer(self):
+        pass

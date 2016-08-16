@@ -20,6 +20,10 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 
+def plot_single_profile_viewer():
+    pass
+
+
 def get_variable_data(root, variable_name):
     try:
         return get_data_array(root[variable_name])
@@ -75,7 +79,7 @@ def get_pandas_timestamp_series(datetime_array):
     return out
 
 
-def plot_temperature_salinity_diagram(x, y, conv_time, colormap_name='YlOrRd', title_label='', x_label='', y_label='',
+def plot_temperature_salinity_diagram(x, y, conv_time, colormap_name='winter', title_label='', x_label='', y_label='',
                                       z=np.asarray([]), depth=np.asarray([]), latitude=np.asarray([]),
                                       longitude=np.asarray([]), profile_index=np.asarray([]), z_label=''):
     # [x_data, y_data, z_data] = map(get_data_array_filled_with_nans, [x, y, z])
@@ -108,7 +112,7 @@ def plot_temperature_salinity_diagram(x, y, conv_time, colormap_name='YlOrRd', t
             )
         )
         z_color_list, bokeh_palette = get_data_color_palette(z, colormap_name)
-        fig.scatter(x='x', y='y', fill_color=z_color_list[:, 0], radius=0.0015, fill_alpha=0.5,
+        fig.scatter(x='x', y='y', fill_color=z_color_list[:, 0], radius=0.006, fill_alpha=0.5,
                     line_color=None, source=data_source, name="data")
         hover = fig.select(dict(type=HoverTool))
         hover.names = ["data"]
@@ -117,14 +121,14 @@ def plot_temperature_salinity_diagram(x, y, conv_time, colormap_name='YlOrRd', t
             ('temperature', '@y{0.0}'),
             (z_label, '@z{0.0}'),
             ('depth', '@depth{0.0}'),
-            ('latitude', '@lat{0.4}'),
-            ('longitude', '@lon{0.4}'),
+            ('latitude', '@lat{6.4}'),
+            ('longitude', '@lon{6.4}'),
             ('profile_index', '@prof_idx{0.0}'),
             ('time', '@time')
         ])
     else:
         idx = ~np.isnan(x) & ~np.isnan(y)
-        fig.scatter(x[idx], y[idx], radius=0.0015, fill_alpha=0.5, line_color=None)
+        fig.scatter(x[idx], y[idx], radius=0.006, fill_alpha=0.5, line_color=None)
     return fig
 
 
@@ -144,7 +148,7 @@ def read_value_config(section, variable):
 
 
 def is_l2_processing_level(link):
-    if link.find('/L2/'):
+    if link.find('/L2/') != -1:
         return True
     else:
         return False
