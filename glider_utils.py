@@ -5,9 +5,9 @@ import matplotlib.cm as cm
 from matplotlib import colors as mp_colors
 from bokeh.plotting import figure
 import pandas as pd
-from bokeh.models import Plot, Rect, Range1d, Text, ColumnDataSource, HoverTool
+from bokeh.models import Plot, Rect, Range1d, Text, ColumnDataSource, HoverTool, CustomJS, Select
 from bokeh.layouts import column, row, widgetbox
-from bokeh.io import gridplot
+from bokeh.io import output_file, save
 import ConfigParser
 import os
 import logging
@@ -20,8 +20,37 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 
-def plot_single_profile_viewer():
-    pass
+def plot_single_profile_viewer(output_file_path, **kwargs):
+    output_file(output_file_path + '.html')
+    variable_names = kwargs.keys()
+    kwargs['x'] = kwargs[variable_names[0]]
+    kwargs['y'] = kwargs[variable_names[1]]
+    source = ColumnDataSource(data=kwargs)
+    callback_x = CustomJS(args=dict(source=source), code="""
+                var data = source.get('data');
+                var f = cb_obj.get('value');
+                data['x'] = data[f]
+                source.trigger('change');
+            """)
+    callback_y = CustomJS(args=dict(source=source), code="""
+                var data = source.get('data');
+                var f = cb_obj.get('value');
+                data['y'] = data[f]
+                source.trigger('change');
+            """)
+    select_x = Select(title="X-Range:", value=variable_names[0], options=variable_names, callback=callback_x)
+    select_y = Select(title="Y-Range:", value=variable_names[1], options=variable_names, callback=callback_y)
+    plot = figure(plot_width=400, plot_height=400, tools=["pan, box_zoom, wheel_zoom, save, reset, resize, hover"])
+    plot.line('x', 'y', source=source, line_width=3, line_alpha=0.6)
+    plot.square('x', 'y', source=source, name="data")
+    hover = plot.select(dict(type=HoverTool))
+    hover.names = ["data"]
+    order_dic = OrderedDict()
+    for cur_var_name in variable_names:
+        order_dic[cur_var_name] = '@' + cur_var_name + '{0.0}'
+    hover.tooltips = order_dic
+    layout = column(select_x, select_y, plot)
+    save(layout)
 
 
 def get_variable_data(root, variable_name):

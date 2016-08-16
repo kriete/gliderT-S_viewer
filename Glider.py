@@ -30,7 +30,7 @@ class Glider:
         self.out_dir = self.config[self.general_section]['out_dir'] + self.config[self.general_section]['name']
         create_folder(self.out_dir)
         self.create_temperature_salinity_diagram()
-
+        self.create_single_profiles_viewer()
 
     def read_config(self):
         self.config[self.general_section] = {
@@ -41,7 +41,8 @@ class Glider:
         self.config[self.scientific_section] = {
             't_s_range': map(str, json.loads(read_value_config(self.scientific_section, 'temperature_salinity_range'))),
             'full_prof_vars': map(str, json.loads(read_value_config(self.scientific_section, 'full_profiles_variables'))),
-            'prof_vars': map(str, json.loads(read_value_config(self.scientific_section, 'profile_viewer_variables')))
+            'prof_vars': map(str, json.loads(read_value_config(self.scientific_section, 'profile_viewer_variables'))),
+            'prof_numbers': map(float, json.loads(read_value_config(self.scientific_section, 'profile_viewer_profiles')))
         }
 
     def read_netcdf_file(self):
@@ -119,5 +120,17 @@ class Glider:
             output_file(self.out_dir + '/T_S_diagram_' + cur_range_var_name + '.html')
             save(p)
 
-    def create_profile_viewer(self):
-        pass
+    def create_single_profiles_viewer(self):
+        logger.info('Creating single profiles...')
+        for cur_profile in self.config[self.scientific_section]['prof_numbers']:
+            logger.info('Processing profile number ' + str(cur_profile))
+            data = dict()
+            idx = get_data_array_filled_with_nans(self.root['profile_index']) == cur_profile
+            t_non_nan_idx = ~np.isnan(get_data_array_filled_with_nans(self.root['temperature'])[idx])
+            for cur_var_name in self.config[self.scientific_section]['prof_vars']:
+                cur_data = get_data_array_filled_with_nans(self.root[cur_var_name])[idx]
+                data[cur_var_name] = cur_data[t_non_nan_idx]
+            plot_single_profile_viewer(self.out_dir + '/single_profile_' + str(cur_profile).replace('.', '_'), **data)
+
+
+
