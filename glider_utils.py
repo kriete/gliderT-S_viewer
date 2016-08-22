@@ -5,8 +5,8 @@ import matplotlib.cm as cm
 from matplotlib import colors as mp_colors
 from bokeh.plotting import figure
 import pandas as pd
-from bokeh.models import Plot, Rect, Range1d, Text, ColumnDataSource, HoverTool, CustomJS, Select
-from bokeh.layouts import column, row, widgetbox
+from bokeh.models import ColumnDataSource, HoverTool, CustomJS, Select
+from bokeh.layouts import column
 from bokeh.io import output_file, save
 import ConfigParser
 import os
@@ -15,9 +15,64 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 handler = logging.FileHandler('utils.log')
 handler.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s p%(process)s {%(pathname)s:%(lineno)d} - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter('%(asctime)s p%(process)s {%(pathname)s:%(lineno)d} - %(name)s - %(levelname)s - '
+                              '%(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
+
+
+def plot_multiple_profiles(output_file_path, temperature, salinity, profiles):
+    non_nan_idx = ~np.isnan(temperature)
+
+    non_nan_temp = temperature[non_nan_idx]
+    non_nan_prof = profiles[non_nan_idx]
+    non_nan_sal = salinity[non_nan_idx]
+    unique_profs = np.unique(non_nan_prof)
+
+    start_idx = profiles == profiles[0]
+    start_idx = start_idx & non_nan_idx
+
+    sal_sel = salinity[start_idx]
+    temp_sel = temperature[start_idx]
+
+    output_file(output_file_path + '.html')
+    source = ColumnDataSource(data=dict(x=sal_sel, y=temp_sel, t=non_nan_temp, s=non_nan_sal, p=non_nan_prof))
+    callback_profiles = CustomJS(args=dict(source=source), code="""
+        function getAllIndices(arr, val) {
+            var indexes = [], i;
+            for(i = 0; i < arr.length; i++)
+                if (arr[i] === val)
+                    indexes.push(i);
+            return indexes;
+        }
+        function getAllData(arr, idx) {
+            var outArr = [], i;
+            for(i=0; i<idx.length; i++)
+                outArr.push(arr[idx[i]])
+            return outArr
+        }
+        var data = source.get('data');
+        var temp = data['t'];
+        var sal = data['s'];
+        var profiles = data['p'];
+        var cur_profile = parseFloat(cb_obj.get('value'));
+        p_idx = getAllIndices(profiles, cur_profile);
+        sal = getAllData(sal, p_idx);
+        temp = getAllData(temp, p_idx);
+        data['x'] = sal;
+        data['y'] = temp;
+        console.log(sal);
+        console.log(p_idx);
+        source.trigger('change');
+    """)
+    select_profiles = Select(title="Profile:", value=str(unique_profs[0]), options=map(str, unique_profs),
+                             callback=callback_profiles)
+    plot = figure(plot_width=400, plot_height=400, tools=["pan, box_zoom, wheel_zoom, save, reset, resize"],
+                  webgl=False)
+    plot.line('x', 'y', source=source, line_width=3, line_alpha=0.6)
+    plot.square('x', 'y', source=source, name="data")
+    layout = column(select_profiles, plot)
+    save(layout)
 
 
 def plot_single_profile_viewer(output_file_path, **kwargs):

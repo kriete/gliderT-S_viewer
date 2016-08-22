@@ -31,6 +31,7 @@ class Glider:
         create_folder(self.out_dir)
         self.create_temperature_salinity_diagram()
         self.create_single_profiles_viewer()
+        self.create_all_profiles_viewer()
 
     def read_config(self):
         self.config[self.general_section] = {
@@ -61,18 +62,18 @@ class Glider:
             self.variable_data_interest[cur_var] = get_data_array(self.root[cur_var])
 
     def get_depth_levels(self, variable_data):
-        if self.is_l2:
+        if self.is_l2 & (len(variable_data) == len(self.depth)):
             non_flatted_size = len(self.time)
             variable_levels_size = len(self.depth)
             depth_levels = np.zeros((non_flatted_size, variable_levels_size))
-            for i in range(0, variable_levels_size):
+            for i in range(0, non_flatted_size):
                 depth_levels[i, :] = variable_data
             return depth_levels
         else:
             return variable_data
 
     def get_time_levels(self, variable_data):
-        if self.is_l2:
+        if self.is_l2 & (len(variable_data.flatten()) == len(self.time)):
             time_levels = np.zeros((len(self.time), len(self.depth)))
             for i in range(0, len(self.time)):
                 time_levels[i, :] = variable_data[i]
@@ -125,12 +126,23 @@ class Glider:
         for cur_profile in self.config[self.scientific_section]['prof_numbers']:
             logger.info('Processing profile number ' + str(cur_profile))
             data = dict()
-            idx = get_data_array_filled_with_nans(self.root['profile_index']) == cur_profile
-            t_non_nan_idx = ~np.isnan(get_data_array_filled_with_nans(self.root['temperature'])[idx])
-            for cur_var_name in self.config[self.scientific_section]['prof_vars']:
-                cur_data = get_data_array_filled_with_nans(self.root[cur_var_name])[idx]
-                data[cur_var_name] = cur_data[t_non_nan_idx]
-            plot_single_profile_viewer(self.out_dir + '/single_profile_' + str(cur_profile).replace('.', '_'), **data)
 
+            idx = self.get_time_levels(get_data_array_filled_with_nans(self.root['profile_index'])).flatten() == cur_profile
+            if idx.any():
+                t_non_nan_idx = ~np.isnan(get_data_array_filled_with_nans(self.root['temperature']).flatten()[idx])
+                for cur_var_name in self.config[self.scientific_section]['prof_vars']:
+                    if cur_var_name == 'depth':
+                        cur_data = self.get_depth_levels(get_data_array_filled_with_nans(self.root[cur_var_name])).flatten('A')[idx]
+                    else:
+                        cur_data = self.get_depth_levels(get_data_array_filled_with_nans(self.root[cur_var_name])).flatten()[idx]
+                    data[cur_var_name] = cur_data[t_non_nan_idx]
+                plot_single_profile_viewer(self.out_dir + '/single_profile_' + str(cur_profile).replace('.', '_'), **data)
+            else:
+                logger.info('No profile found for index {0}.'.format(cur_profile))
 
-
+    def create_all_profiles_viewer(self):
+        logger.info('Creating all profile viewer...')
+        profiles = self.get_time_levels(get_data_array_filled_with_nans(self.root['profile_index'])).flatten()
+        temperature = get_data_array_filled_with_nans(self.root['temperature']).flatten()
+        salinity = get_data_array_filled_with_nans(self.root['salinity']).flatten()
+        plot_multiple_profiles(self.out_dir + '/all_profiles', temperature, salinity, profiles)
