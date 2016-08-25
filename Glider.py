@@ -25,13 +25,20 @@ class Glider:
         self.scientific_section = 'Scientifical'
         self.variable_data_interest = dict()
         self.read_config()
+        self.plot_only_single_profiles = False
+        if read_value_config(self.general_section, 'plot_single_profiles_only') == 'True':
+            logger.info('Plotting only single profiles.')
+            self.plot_only_single_profiles = True
         self.is_l2 = is_l2_processing_level(self.config[self.general_section]['link'])
         self.read_netcdf_file()
         self.out_dir = self.config[self.general_section]['out_dir'] + self.config[self.general_section]['name']
         create_folder(self.out_dir)
-        self.create_temperature_salinity_diagram()
-        self.create_single_profiles_viewer()
-        self.create_all_profiles_viewer()
+        if not self.plot_only_single_profiles:
+            self.create_temperature_salinity_diagram()
+            self.create_all_profiles_viewer()
+            self.create_single_profiles_viewer()
+        else:
+            self.create_single_profiles_viewer()
 
     def read_config(self):
         self.config[self.general_section] = {
@@ -41,7 +48,7 @@ class Glider:
         }
         self.config[self.scientific_section] = {
             't_s_range': map(str, json.loads(read_value_config(self.scientific_section, 'temperature_salinity_range'))),
-            'full_prof_vars': map(str, json.loads(read_value_config(self.scientific_section, 'full_profiles_variables'))),
+            # 'full_prof_vars': map(str, json.loads(read_value_config(self.scientific_section, 'full_profiles_variables'))),
             'prof_vars': map(str, json.loads(read_value_config(self.scientific_section, 'profile_viewer_variables'))),
             'prof_numbers': map(float, json.loads(read_value_config(self.scientific_section, 'profile_viewer_profiles')))
         }
@@ -50,16 +57,19 @@ class Glider:
         try:
             logger.info('Reading dataset...')
             self.root = Dataset(self.config[self.general_section]['link'])
-        except RuntimeError:
+        except (RuntimeError, IOError):
             logger.error('Cannot read dataset {0}.'.format(self.config[self.general_section]['link']))
         self.time = get_data_array(self.root['time'])
         self.depth = get_data_array(self.root['depth'])
-        read_variables = np.union1d(self.config['Scientifical']['full_prof_vars'],
-                                    self.config['Scientifical']['prof_vars'])
-        read_variables = np.union1d(read_variables, self.config[self.scientific_section]['t_s_range'])
-        logger.info('Read variables of interest...')
-        for cur_var in read_variables:
-            self.variable_data_interest[cur_var] = get_data_array(self.root[cur_var])
+        # read_variables = np.union1d(self.config['Scientifical']['full_prof_vars'],
+        #                             self.config['Scientifical']['prof_vars'])
+        # read_variables = np.union1d(read_variables, self.config[self.scientific_section]['t_s_range'])
+        # logger.info('Read variables of interest...')
+        # for cur_var in read_variables:
+        #     try:
+        #         self.variable_data_interest[cur_var] = get_data_array(self.root[cur_var])
+        #     except IndexError:
+        #         logger.warning('Variable {0} not found.'.format(cur_var))
 
     def get_depth_levels(self, variable_data):
         if self.is_l2 & (len(variable_data) == len(self.depth)):

@@ -61,18 +61,25 @@ def plot_multiple_profiles(output_file_path, temperature, salinity, profiles):
         temp = getAllData(temp, p_idx);
         data['x'] = sal;
         data['y'] = temp;
-        console.log(sal);
-        console.log(p_idx);
         source.trigger('change');
     """)
     select_profiles = Select(title="Profile:", value=str(unique_profs[0]), options=map(str, unique_profs),
                              callback=callback_profiles)
-    plot = figure(plot_width=400, plot_height=400, tools=["pan, box_zoom, wheel_zoom, save, reset, resize"],
+    plot = figure(plot_width=400, plot_height=400, tools=["pan, box_zoom, wheel_zoom, hover, save, reset, resize"],
                   webgl=False)
     plot.line('x', 'y', source=source, line_width=3, line_alpha=0.6)
     plot.square('x', 'y', source=source, name="data")
+    hover = plot.select(dict(type=HoverTool))
+    hover.names = ["data"]
+    hover.tooltips = OrderedDict([
+        ('salinity', '@x{0.3g} psu'),
+        ('temperature', '@y{0.3g} C'),
+    ])
     layout = column(select_profiles, plot)
+    # haha never written something soooo dirty :>
+    logging.disable(logging.CRITICAL)
     save(layout)
+    logging.disable(logging.NOTSET)
 
 
 def plot_single_profile_viewer(output_file_path, **kwargs):
@@ -115,7 +122,7 @@ def get_variable_data(root, variable_name):
         return np.asarray([])
 
 
-def get_data_color_palette(data, colormap_name):
+def get_data_color_palette(data, colormap_name, use_log=False):
     colormap = cm.get_cmap(colormap_name)
     bokeh_palette = [mp_colors.rgb2hex(m) for m in colormap(np.arange(colormap.N))]
     data_min = np.nanmin(data)
@@ -128,8 +135,28 @@ def get_data_color_palette(data, colormap_name):
     for _ in data:
         color_list[counter] = ""
         counter += 1
-    counter = 1
+
     lower_limit = data_min
+    if use_log & (data_max > 0.01):
+        if data_min <= 0:
+            base_start = np.log10(0.01)
+        else:
+            base_start = np.log10(data_min)
+        temp_data = np.sort(data)
+        temp_data = np.nanmax(temp_data[0:int(len(temp_data)*0.95)])
+        base_end = np.log10(temp_data)
+        logspace_ranges = np.logspace(base_start, base_end, 256)
+        counter = 0
+        upper_limit = 0
+        for i in bokeh_palette:
+            upper_limit = logspace_ranges[counter]
+            test = np.where((data >= lower_limit) & (data <= upper_limit))
+            color_list[test] = i
+            counter += 1
+            lower_limit = upper_limit
+        color_list[np.where(data >= upper_limit)] = bokeh_palette[-1]
+        return color_list, bokeh_palette
+    counter = 1
     for i in bokeh_palette:
         upper_limit = data_min + abs_range*counter
         test = np.where((data >= lower_limit) & (data <= upper_limit))
@@ -167,10 +194,14 @@ def plot_temperature_salinity_diagram(x, y, conv_time, colormap_name='winter', t
                                       z=np.asarray([]), depth=np.asarray([]), latitude=np.asarray([]),
                                       longitude=np.asarray([]), profile_index=np.asarray([]), z_label=''):
     # [x_data, y_data, z_data] = map(get_data_array_filled_with_nans, [x, y, z])
-    fig = figure(title=title_label, tools=["pan, box_zoom, wheel_zoom, save, reset, resize, hover"], webgl=True)
     x = x.flatten()
     y = y.flatten()
     z = z.flatten()
+    if np.any(z):
+        tools = ["pan, box_zoom, wheel_zoom, save, reset, resize, hover"]
+    else:
+        tools = ["pan, box_zoom, wheel_zoom, save, reset, resize"]
+    fig = figure(title=title_label, tools=tools, webgl=True)
     depth = depth.flatten()
     longitude = longitude.flatten()
     latitude = latitude.flatten()
@@ -195,7 +226,11 @@ def plot_temperature_salinity_diagram(x, y, conv_time, colormap_name='winter', t
                 time=time_strings
             )
         )
-        z_color_list, bokeh_palette = get_data_color_palette(z, colormap_name)
+        if z_label == 'chlorophyll' or z_label == 'turbidity':
+            use_log = True
+        else:
+            use_log = False
+        z_color_list, bokeh_palette = get_data_color_palette(z, colormap_name, use_log=use_log)
         fig.scatter(x='x', y='y', fill_color=z_color_list[:, 0], radius=0.006, fill_alpha=0.5,
                     line_color=None, source=data_source, name="data")
         hover = fig.select(dict(type=HoverTool))
